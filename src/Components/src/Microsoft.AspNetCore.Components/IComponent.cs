@@ -20,6 +20,7 @@ namespace Microsoft.AspNetCore.Components
         /// Sets parameters supplied by the component's parent in the render tree.
         /// </summary>
         /// <param name="parameters">The parameters.</param>
+        /// <returns>A <see cref="Task"/> that completes when the component has finished updating and rendering itself.</returns>
         Task SetParametersAsync(ParameterCollection parameters);
     }
 }

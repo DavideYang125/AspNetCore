@@ -236,7 +236,12 @@ namespace Microsoft.AspNetCore.Components
 
         private (bool isAsync, Task asyncTask) ProcessLifeCycletask(Task task)
         {
-            switch (task == null ? TaskStatus.RanToCompletion : task.Status)
+            if (task == null)
+            {
+                throw new ArgumentNullException(nameof(task));
+            }
+
+            switch (task.Status)
             {
                 // If it's already completed synchronously, no need to await and no
                 // need to issue a further render (we already rerender synchronously).
@@ -335,19 +340,24 @@ namespace Microsoft.AspNetCore.Components
             var onAfterRenderTask = OnAfterRenderAsync();
             if (onAfterRenderTask != null && onAfterRenderTask.Status != TaskStatus.RanToCompletion)
             {
-                onAfterRenderTask.ContinueWith(task =>
-                {
-                    // Note that we don't call StateHasChanged to trigger a render after
-                    // handling this, because that would be an infinite loop. The only
-                    // reason we have OnAfterRenderAsync is so that the developer doesn't
-                    // have to use "async void" and do their own exception handling in
-                    // the case where they want to start an async task.
+                // Note that we don't call StateHasChanged to trigger a render after
+                // handling this, because that would be an infinite loop. The only
+                // reason we have OnAfterRenderAsync is so that the developer doesn't
+                // have to use "async void" and do their own exception handling in
+                // the case where they want to start an async task.
+                var taskWithHandledException = HandleAfterRenderException(onAfterRenderTask);
+            }
+        }
 
-                    if (task.Exception != null)
-                    {
-                        HandleException(task.Exception);
-                    }
-                });
+        private async Task HandleAfterRenderException(Task parentTask)
+        {
+            try
+            {
+                await parentTask;
+            }
+            catch (Exception e)
+            {
+                HandleException(e);
             }
         }
     }

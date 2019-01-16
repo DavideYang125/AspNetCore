@@ -143,13 +143,14 @@ namespace Microsoft.AspNetCore.Components.Rendering
             _renderer.AddToPendingTasks(Component.SetParametersAsync(parameters));
         }
 
-        public async Task NotifyCascadingValueChanged()
+        public void NotifyCascadingValueChanged()
         {
             var directParams = _latestDirectParametersSnapshot != null
                 ? new ParameterCollection(_latestDirectParametersSnapshot.Buffer, 0)
                 : ParameterCollection.Empty;
             var allParams = directParams.WithCascadingParameters(_cascadingParameters);
-            await Component.SetParametersAsync(allParams);
+            var task = Component.SetParametersAsync(allParams);
+            _renderer.AddToPendingTasks(task);
         }
 
         private bool AddCascadingParameterSubscriptions()

@@ -1,12 +1,11 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-using Microsoft.AspNetCore.Components.Rendering;
-using Microsoft.AspNetCore.Components.RenderTree;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Components.Rendering;
+using Microsoft.AspNetCore.Components.RenderTree;
 
 namespace Microsoft.AspNetCore.Components
 {
@@ -57,7 +56,7 @@ namespace Microsoft.AspNetCore.Components
         }
 
         /// <inheritdoc />
-        public async Task SetParametersAsync(ParameterCollection parameters)
+        public Task SetParametersAsync(ParameterCollection parameters)
         {
             // Implementing the parameter binding manually, instead of just calling
             // parameters.SetParameterProperties(this), is just a very slight perf optimization
@@ -129,8 +128,10 @@ namespace Microsoft.AspNetCore.Components
 
             if (_subscribers != null && ChangeDetection.MayHaveChanged(previousValue, Value))
             {
-                await NotifySubscribersAsync();
+                NotifySubscribers();
             }
+
+            return Task.CompletedTask;
         }
 
         bool ICascadingValueComponent.CanSupplyValue(Type requestedType, string requestedName)
@@ -168,9 +169,12 @@ namespace Microsoft.AspNetCore.Components
             _subscribers.Remove(subscriber);
         }
 
-        private async Task NotifySubscribersAsync()
+        private void NotifySubscribers()
         {
-            await Task.WhenAll(_subscribers.Select(s => s.NotifyCascadingValueChanged()));
+            foreach (var subscriber in _subscribers)
+            {
+                subscriber.NotifyCascadingValueChanged();
+            }
         }
 
         private void Render(RenderTreeBuilder builder)

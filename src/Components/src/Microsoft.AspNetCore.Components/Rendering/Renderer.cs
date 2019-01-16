@@ -85,12 +85,12 @@ namespace Microsoft.AspNetCore.Components.Rendering
         /// <param name="initialParameters">The <see cref="ParameterCollection"/>with the initial parameters to use for rendering.</param>
         protected void RenderRootComponent(int componentId, ParameterCollection initialParameters)
         {
-            ContinueAfterLifecycleTask(RenderRootComponentAsync(componentId, initialParameters));
+            ReportAsyncExceptions(RenderRootComponentAsync(componentId, initialParameters));
         }
 
-        private async void ContinueAfterLifecycleTask(Task task)
+        private async void ReportAsyncExceptions(Task task)
         {
-            switch (task == null ? TaskStatus.RanToCompletion : task.Status)
+            switch (task.Status)
             {
                 // If it's already completed synchronously, no need to await and no
                 // need to issue a further render (we already rerender synchronously).
@@ -363,7 +363,7 @@ namespace Microsoft.AspNetCore.Components.Rendering
             try
             {
                 // Process render queue until empty
-                while (TryGetRenderQueueEntry(out var nextToRender))
+                while (TryDequeueRenderQueueEntry(out var nextToRender))
                 {
                     RenderInExistingBatch(nextToRender);
                 }
@@ -380,7 +380,7 @@ namespace Microsoft.AspNetCore.Components.Rendering
             }
         }
 
-        private bool TryGetRenderQueueEntry(out RenderQueueEntry entry)
+        private bool TryDequeueRenderQueueEntry(out RenderQueueEntry entry)
         {
             lock (_asyncWorkLock)
             {
