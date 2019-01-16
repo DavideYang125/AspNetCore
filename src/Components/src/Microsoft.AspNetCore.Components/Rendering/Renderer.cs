@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components.RenderTree;
@@ -23,7 +24,7 @@ namespace Microsoft.AspNetCore.Components.Rendering
         private int _nextComponentId = 0; // TODO: change to 'long' when Mono .NET->JS interop supports it
         private bool _isBatchInProgress;
         private int _lastEventHandlerId = 0;
-        private List<Task> _pendingTasks = new List<Task>();
+        private List<Task> _pendingTasks;
 
         // We need to introduce locking as we don't know if we are executing
         // under a synchronization context that limits the ammount of concurrency
@@ -97,8 +98,10 @@ namespace Microsoft.AspNetCore.Components.Rendering
                 // Just need to make sure we propagate any errors.
                 case TaskStatus.RanToCompletion:
                 case TaskStatus.Canceled:
+                    _pendingTasks = null;
                     break;
                 case TaskStatus.Faulted:
+                    _pendingTasks = null;
                     HandleException(task.Exception);
                     break;
 
@@ -115,6 +118,11 @@ namespace Microsoft.AspNetCore.Components.Rendering
                         {
                             HandleException(ex);
                         }
+                    }
+                    finally
+                    {
+                        // Clear the list after we are done rendering the root component or an async exception has ocurred.
+                        _pendingTasks = null;
                     }
 
                     break;
@@ -156,6 +164,11 @@ namespace Microsoft.AspNetCore.Components.Rendering
         /// <param name="initialParameters">The <see cref="ParameterCollection"/>with the initial parameters to use for rendering.</param>
         protected async Task RenderRootComponentAsync(int componentId, ParameterCollection initialParameters)
         {
+            if (_pendingTasks != null)
+            {
+                throw new InvalidOperationException("There is an ongoing rendering in progress.");
+            }
+            _pendingTasks = new List<Task>();
             // During the rendering process we keep a list of components performing work in _pendingTasks.
             // _renderer.AddToPendingTasks will be called by ComponentState.SetDirectParameters to add the
             // the Task produced by Component.SetParametersAsync to _pendingTasks in order to track the
@@ -167,7 +180,15 @@ namespace Microsoft.AspNetCore.Components.Rendering
             GetRequiredComponentState(componentId)
                 .SetDirectParameters(initialParameters);
 
-            await ProcessAsynchronousWork();
+            try
+            {
+                await ProcessAsynchronousWork();
+                Debug.Assert(_pendingTasks.Count == 0);
+            }
+            finally
+            {
+                _pendingTasks = null;
+            }
         }
 
         private async Task ProcessAsynchronousWork()
@@ -297,6 +318,11 @@ namespace Microsoft.AspNetCore.Components.Rendering
                     ExceptionDispatchInfo.Capture(task.Exception.InnerException).Throw();
                     break;
                 default:
+                    // We are not in rendering the root component.
+                    if (_pendingTasks == null)
+                    {
+                        return;
+                    }
                     lock (_asyncWorkLock)
                     {
                         _pendingTasks.Add(task);
